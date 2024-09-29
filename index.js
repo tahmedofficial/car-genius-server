@@ -20,13 +20,12 @@ const logger = async (req, res, next) => {
 
 const verifyToken = async (req, res, next) => {
     const token = req.cookies?.token;
-    console.log("from middlewares", token);
     if (!token) {
-        return res.status(401).send({ message: "not authorized" })
+        return res.status(401).send({ message: "unauthorized" })
     }
     jwt.verify(token, process.env.SECRET_TOKEN, (err, decoded) => {
         if (err) {
-            return res.status(401).send({ message: "not authorized" })
+            return res.status(401).send({ message: "unauthorized" })
         }
         req.user = decoded;
         next();
@@ -85,9 +84,9 @@ async function run() {
 
         // Bookings
         app.get("/bookings", logger, verifyToken, async (req, res) => {
-            console.log(req.query);
-            console.log("from valid token", req.user);
-            // console.log("token ",req.cookies.token);
+            if (req.query.email !== req.user.email) {
+                return res.status(403).send({ message: "forbidden" })
+            }
             let query = {};
             if (req.query?.email) {
                 query = { email: req.query.email };
