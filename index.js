@@ -7,10 +7,31 @@ require('dotenv').config();
 const app = express();
 const port = process.env.PORT || 5000;
 
-// middleware
+// middlewares
 app.use(cors({ origin: ["http://localhost:5173",], credentials: true, }));
 app.use(express.json());
 app.use(cookieParser());
+
+// my middlewares
+const logger = async (req, res, next) => {
+    console.log("called:", req.host, req.originalUrl)
+    next();
+}
+
+const verifyToken = async (req, res, next) => {
+    const token = req.cookies?.token;
+    console.log("from middlewares", token);
+    if (!token) {
+        return res.status(401).send({ message: "not authorized" })
+    }
+    jwt.verify(token, process.env.SECRET_TOKEN, (err, decoded) => {
+        if (err) {
+            return res.status(401).send({ message: "not authorized" })
+        }
+        req.user = decoded;
+        next();
+    })
+}
 
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.ufkobjs.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
@@ -39,15 +60,14 @@ async function run() {
         // Code hear-------------------------------
 
         // Auth related api
-        app.post("/jwt", async (req, res) => {
+        app.post("/jwt", logger, async (req, res) => {
             const user = req.body;
-            console.log(user);
             const token = jwt.sign(user, process.env.SECRET_TOKEN, { expiresIn: "1h" });
-            res.cookie("token", token, cookieOptions).send({ success: true });
+            res.cookie("token", token, cookieOptions).send({ success: true })
         })
 
         // services related api
-        app.get("/services", async (req, res) => {
+        app.get("/services", logger, async (req, res) => {
             const cursor = serviceCollection.find();
             const result = await cursor.toArray();
             res.send(result);
@@ -64,9 +84,10 @@ async function run() {
         })
 
         // Bookings
-        app.get("/bookings", async (req, res) => {
+        app.get("/bookings", logger, verifyToken, async (req, res) => {
             console.log(req.query);
-            console.log("token ",req.cookies.token);
+            console.log("from valid token", req.user);
+            // console.log("token ",req.cookies.token);
             let query = {};
             if (req.query?.email) {
                 query = { email: req.query.email };
