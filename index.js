@@ -13,16 +13,12 @@ app.use(express.json());
 app.use(cookieParser());
 
 // my middlewares
-const logger = async (req, res, next) => {
-    console.log("called:", req.host, req.originalUrl)
-    next();
-}
-
 const verifyToken = async (req, res, next) => {
     const token = req.cookies?.token;
     if (!token) {
         return res.status(401).send({ message: "unauthorized" })
     }
+
     jwt.verify(token, process.env.SECRET_TOKEN, (err, decoded) => {
         if (err) {
             return res.status(401).send({ message: "unauthorized" })
@@ -59,14 +55,20 @@ async function run() {
         // Code hear-------------------------------
 
         // Auth related api
-        app.post("/jwt", logger, async (req, res) => {
+        app.post("/jwt", async (req, res) => {
             const user = req.body;
             const token = jwt.sign(user, process.env.SECRET_TOKEN, { expiresIn: "1h" });
             res.cookie("token", token, cookieOptions).send({ success: true })
         })
 
+        app.post("/logout", async (req, res) => {
+            const user = req.body;
+            console.log(user);
+            res.clearCookie("token", { maxAge: 0 }).send({ token: true })
+        })
+
         // services related api
-        app.get("/services", logger, async (req, res) => {
+        app.get("/services", async (req, res) => {
             const cursor = serviceCollection.find();
             const result = await cursor.toArray();
             res.send(result);
@@ -83,7 +85,7 @@ async function run() {
         })
 
         // Bookings
-        app.get("/bookings", logger, verifyToken, async (req, res) => {
+        app.get("/bookings", verifyToken, async (req, res) => {
             if (req.query.email !== req.user.email) {
                 return res.status(403).send({ message: "forbidden" })
             }
